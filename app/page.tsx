@@ -47,11 +47,13 @@ function readAccessKey(): string {
 // Karekod ekranın elverdiği kadar büyük çizilir (uzaktan okunabilsin)
 function qrPixelSize(): number {
   return Math.round(
-    Math.max(240, Math.min(window.innerWidth * 0.8, window.innerHeight * 0.58, 640))
+    Math.max(200, Math.min(window.innerWidth * 0.8, window.innerHeight * 0.42, 640))
   );
 }
 
 export default function KioskScreen() {
+  // Karekod üretimi yalnızca "Start"a basıldıktan sonra çalışır
+  const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: 'loading' });
   const [timeLeft, setTimeLeft] = useState(10);
   const [period, setPeriod] = useState(10);
@@ -60,6 +62,8 @@ export default function KioskScreen() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
+    if (!running) return;
+
     let disposed = false;
     let fetching = false;
     let clockOffsetMs = 0; // sunucu saati - tablet saati
@@ -169,9 +173,31 @@ export default function KioskScreen() {
       document.removeEventListener('visibilitychange', keepAwake);
       void wakeLock?.release().catch(() => {});
     };
-  }, []);
+  }, [running]);
+
+  const start = () => {
+    setStatus({ kind: 'loading' });
+    setRunning(true);
+  };
+
+  // Durdurunca effect temizlenir: zamanlayıcı, istekler ve uyku kilidi biter
+  const stop = () => setRunning(false);
 
   const ready = status.kind === 'ready';
+
+  if (!running) {
+    return (
+      <main className="flex min-h-screen min-h-[100dvh] w-full items-center justify-center bg-[#0f172a] p-4 select-none">
+        <button
+          type="button"
+          onClick={start}
+          className="min-h-[96px] min-w-[280px] cursor-pointer rounded-3xl bg-green-600 px-16 text-4xl font-bold text-white shadow-2xl transition active:scale-[0.98] active:bg-green-700"
+        >
+          Start
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen min-h-[100dvh] w-full flex-col items-center justify-center bg-[#0f172a] p-4 select-none">
@@ -197,7 +223,9 @@ export default function KioskScreen() {
               role="status"
               className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center"
             >
-              <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+              {status.kind === 'loading' && (
+                <span className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+              )}
               <span className="text-lg font-semibold text-[#0f172a] sm:text-2xl">
                 {status.kind === 'error' ? status.message : 'Karekod hazırlanıyor...'}
               </span>
@@ -225,6 +253,14 @@ export default function KioskScreen() {
             <span className="font-mono tabular-nums text-[#475569]">{clock}</span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={stop}
+          className="mt-6 min-h-[64px] w-full cursor-pointer rounded-2xl bg-red-600 text-2xl font-bold text-white transition active:scale-[0.98] active:bg-red-700"
+        >
+          Stop
+        </button>
       </div>
     </main>
   );
