@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import * as OTPAuth from 'otpauth';
 import CryptoJS from 'crypto-js';
+import { hasValidSession } from '../../../lib/session';
 
 // Karekod SUNUCUDA üretilir. TOTP sırrı ve AES anahtarı tarayıcıya hiç
 // gönderilmez; ekran yalnızca hazır (şifreli) karekod metnini alır.
@@ -30,9 +31,6 @@ const AES_SECRET_KEY =
   process.env.NEXT_PUBLIC_AES_SECRET_KEY ||
   (isProduction ? '' : SAMPLE_AES_KEY);
 
-// Tanımlıysa yalnızca bu anahtarı bilen ekran karekod alabilir
-const KIOSK_ACCESS_KEY = process.env.KIOSK_ACCESS_KEY || '';
-
 const isConfigured = Boolean(SHARED_SECRET_BASE32 && AES_SECRET_KEY);
 
 if (
@@ -41,11 +39,6 @@ if (
 ) {
   console.error(
     '[Kiosk] GÜVENLİK UYARISI: SHARED_SECRET_BASE32 / AES_SECRET_KEY herkese açık örnek değerlerde. Canlıya çıkmadan önce değiştirin.'
-  );
-}
-if (!KIOSK_ACCESS_KEY) {
-  console.warn(
-    '[Kiosk] KIOSK_ACCESS_KEY tanımlı değil: bu adrese erişebilen herkes geçerli karekod alabilir.'
   );
 }
 
@@ -75,12 +68,13 @@ export async function POST(request: Request) {
     );
   }
 
-  if (KIOSK_ACCESS_KEY && request.headers.get('x-kiosk-key') !== KIOSK_ACCESS_KEY) {
+  // Yalnızca terminal şifresiyle kilidi açılmış ekran karekod alabilir
+  if (!hasValidSession(request)) {
     return NextResponse.json(
       {
         success: false,
-        code: 'UNAUTHORIZED',
-        message: 'Bu ekran karekod göstermeye yetkili değil.',
+        code: 'LOCKED',
+        message: 'Terminal kilitli. Lütfen terminal şifresini girin.',
       },
       { status: 401 }
     );
