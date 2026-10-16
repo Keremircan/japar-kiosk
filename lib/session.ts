@@ -12,22 +12,19 @@ export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-// Yalnızca yerel geliştirmede kullanılan varsayılan PIN
-const DEV_PIN = '1234';
-
-export const KIOSK_PIN =
-  process.env.KIOSK_ACCESS_PIN || (isProduction ? '' : DEV_PIN);
-
 export const PIN_PATTERN = /^\d{4,12}$/;
 
-if (!process.env.KIOSK_ACCESS_PIN) {
-  console[isProduction ? 'error' : 'warn'](
-    isProduction
-      ? '[Kiosk] KIOSK_ACCESS_PIN tanımlı değil: terminal kilidi açılamaz.'
-      : `[Kiosk] KIOSK_ACCESS_PIN tanımlı değil; geliştirme PIN'i (${DEV_PIN}) kullanılıyor.`
+const configuredPin = (process.env.KIOSK_ACCESS_PIN ?? '').trim();
+
+/** Geçerli terminal PIN'i; tanımsız veya biçimi hatalıysa boş (kilit açılamaz, fail closed) */
+export const KIOSK_PIN = PIN_PATTERN.test(configuredPin) ? configuredPin : '';
+
+if (!KIOSK_PIN) {
+  console.error(
+    configuredPin
+      ? '[Kiosk] KIOSK_ACCESS_PIN 4-12 haneli bir sayı olmalı: terminal kilidi açılamaz.'
+      : '[Kiosk] KIOSK_ACCESS_PIN tanımlı değil: terminal kilidi açılamaz.'
   );
-} else if (!PIN_PATTERN.test(process.env.KIOSK_ACCESS_PIN)) {
-  console.error('[Kiosk] KIOSK_ACCESS_PIN 4-12 haneli bir sayı olmalı.');
 }
 
 // İmza anahtarı PIN ve QR sırlarından türetilir: PIN değiştirilince açık olan
@@ -38,7 +35,7 @@ function signingKey(): Buffer {
       [
         'japar-kiosk-session',
         KIOSK_PIN,
-        process.env.AES_SECRET_KEY ?? process.env.NEXT_PUBLIC_AES_SECRET_KEY ?? '',
+        process.env.AES_SECRET_KEY ?? '',
         process.env.SHARED_SECRET_BASE32 ?? '',
       ].join('|')
     )
